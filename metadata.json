@@ -1,0 +1,5 @@
+{
+  "name": "AI Tool Scheduler",
+  "description": "A comprehensive calendar application for managing shared AI tool reservations within a team. Features daily, weekly, and monthly views, conflict detection, and team member management.",
+  "requestFramePermissions": []
+}
