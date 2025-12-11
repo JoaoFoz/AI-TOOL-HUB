@@ -1,254 +1,254 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  format, 
-  addMonths, 
-  subMonths, 
-  addWeeks, 
-  subWeeks, 
-  addDays, 
-  subDays,
-  startOfWeek,
-  endOfWeek
-} from 'date-fns';
-import { pt } from 'date-fns/locale';
-import { LayoutGrid, Calendar as CalendarIcon, List, ChevronLeft, ChevronRight, Settings, Plus } from 'lucide-react';
-
-import { User, Tool, Reservation, ViewMode } from './types';
+import { LayoutDashboard, Users, Cpu, Settings, MessageSquare, Menu, X, ChevronUp, LogOut } from 'lucide-react';
+import { User, Tool, Reservation, Review, PageView } from './types';
 import { MOCK_USERS, INITIAL_TOOLS } from './constants';
-import { CalendarView } from './components/CalendarView';
-import { BookingModal } from './components/BookingModal';
-import { ToolManager } from './components/ToolManager';
+import { Dashboard } from './components/Dashboard';
+import { TeamPage } from './components/TeamPage';
+import { ToolsPage } from './components/ToolsPage';
+import { ReviewsPage } from './components/ReviewsPage';
+import { SettingsPage } from './components/SettingsPage';
+import { UserSwitcher } from './components/UserSwitcher';
 
 function App() {
-  // State
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState<ViewMode>('week');
-  const [users] = useState<User[]>(MOCK_USERS);
+  // --- Global State ---
+  const [currentPage, setCurrentPage] = useState<PageView>('dashboard');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isUserSwitcherOpen, setIsUserSwitcherOpen] = useState(false);
   
-  // Persistent State (Simulating Database)
+  const [selectedToolFilter, setSelectedToolFilter] = useState<string | null>(null);
+
+  // Data Persistence
+  const [users, setUsers] = useState<User[]>(() => {
+    const saved = localStorage.getItem('ai_manager_users');
+    return saved ? JSON.parse(saved) : MOCK_USERS.map(u => ({...u, role: 'Member', initials: u.name.substring(0,2).toUpperCase()}));
+  });
+
+  const [currentUser, setCurrentUser] = useState<User>(() => {
+    return users[0];
+  });
+
   const [tools, setTools] = useState<Tool[]>(() => {
-    const saved = localStorage.getItem('ai_scheduler_tools');
+    const saved = localStorage.getItem('ai_manager_tools');
     return saved ? JSON.parse(saved) : INITIAL_TOOLS;
   });
-  
+
   const [reservations, setReservations] = useState<Reservation[]>(() => {
-    const saved = localStorage.getItem('ai_scheduler_reservations');
+    const saved = localStorage.getItem('ai_manager_reservations');
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [modalInitialDate, setModalInitialDate] = useState<Date | undefined>(undefined);
-  const [modalInitialToolId, setModalInitialToolId] = useState<string | undefined>(undefined);
+  const [reviews, setReviews] = useState<Review[]>(() => {
+    const saved = localStorage.getItem('ai_manager_reviews');
+    return saved ? JSON.parse(saved) : [];
+  });
 
-  // Persistence Effects
+  // --- Effects ---
   useEffect(() => {
-    localStorage.setItem('ai_scheduler_tools', JSON.stringify(tools));
-  }, [tools]);
+    // Initialize Theme
+    const isDark = localStorage.getItem('theme') === 'dark';
+    if(isDark) document.documentElement.classList.add('dark');
+  }, []);
 
-  useEffect(() => {
-    localStorage.setItem('ai_scheduler_reservations', JSON.stringify(reservations));
-  }, [reservations]);
+  useEffect(() => localStorage.setItem('ai_manager_users', JSON.stringify(users)), [users]);
+  useEffect(() => localStorage.setItem('ai_manager_tools', JSON.stringify(tools)), [tools]);
+  useEffect(() => localStorage.setItem('ai_manager_reservations', JSON.stringify(reservations)), [reservations]);
+  useEffect(() => localStorage.setItem('ai_manager_reviews', JSON.stringify(reviews)), [reviews]);
 
-  // Handlers
-  const handlePrevious = () => {
-    if (viewMode === 'month') setCurrentDate(subMonths(currentDate, 1));
-    if (viewMode === 'week') setCurrentDate(subWeeks(currentDate, 1));
-    if (viewMode === 'day') setCurrentDate(subDays(currentDate, 1));
+  // --- Handlers ---
+  const handleNavigate = (page: PageView, toolId?: string) => {
+    setCurrentPage(page);
+    if (page === 'reviews' && toolId) {
+      setSelectedToolFilter(toolId);
+    } else {
+      setSelectedToolFilter(null);
+    }
+    setIsMobileMenuOpen(false);
   };
 
-  const handleNext = () => {
-    if (viewMode === 'month') setCurrentDate(addMonths(currentDate, 1));
-    if (viewMode === 'week') setCurrentDate(addWeeks(currentDate, 1));
-    if (viewMode === 'day') setCurrentDate(addDays(currentDate, 1));
+  const handleSwitchUser = (user: User) => {
+    setCurrentUser(user);
+    setIsUserSwitcherOpen(false);
   };
 
-  const handleToday = () => setCurrentDate(new Date());
+  // Data Modifiers
+  const addUser = (u: User) => setUsers([...users, u]);
+  const updateUser = (u: User) => setUsers(users.map(user => user.id === u.id ? u : user));
+  const removeUser = (id: string) => setUsers(users.filter(u => u.id !== id));
 
-  const handleSlotClick = (date: Date, toolId?: string) => {
-    setModalInitialDate(date);
-    setModalInitialToolId(toolId);
-    setIsModalOpen(true);
+  const addTool = (t: Tool) => setTools([...tools, t]);
+  const removeTool = (id: string) => {
+    setTools(tools.filter(t => t.id !== id));
+    setReservations(reservations.filter(r => r.toolId !== id)); 
   };
 
-  const handleSaveReservation = (resData: Omit<Reservation, 'id'>) => {
-    const newReservation: Reservation = {
-      ...resData,
-      id: crypto.randomUUID(),
-    };
-    setReservations([...reservations, newReservation]);
-  };
+  const addReservation = (r: Reservation) => setReservations([...reservations, r]);
+  const updateReservation = (r: Reservation) => setReservations(reservations.map(res => res.id === r.id ? r : res));
+  const removeReservation = (id: string) => setReservations(reservations.filter(r => r.id !== id));
 
-  const handleAddTool = (tool: Tool) => {
-    setTools([...tools, tool]);
-  };
+  const addReview = (review: Review) => setReviews([review, ...reviews]);
 
-  const handleRemoveTool = (toolId: string) => {
-    // Also remove future reservations for this tool
-    if (confirm('Tem a certeza? Todas as reservas futuras para esta ferramenta serão eliminadas.')) {
-      setTools(tools.filter(t => t.id !== toolId));
-      setReservations(reservations.filter(r => r.toolId !== toolId));
+  const getReviewCount = (toolId: string) => reviews.filter(r => r.toolId === toolId).length;
+
+  // --- Render Helpers ---
+  const renderContent = () => {
+    switch (currentPage) {
+      case 'dashboard':
+        return (
+          <Dashboard 
+            users={users} 
+            tools={tools} 
+            reservations={reservations}
+            currentUser={currentUser}
+            onAddReservation={addReservation}
+            onUpdateReservation={updateReservation}
+            onRemoveReservation={removeReservation}
+          />
+        );
+      case 'team':
+        return <TeamPage users={users} onAdd={addUser} onUpdate={updateUser} onRemove={removeUser} currentUser={currentUser} />;
+      case 'tools':
+        return (
+          <ToolsPage 
+            tools={tools} 
+            getReviewCount={getReviewCount}
+            onAdd={addTool} 
+            onRemove={removeTool} 
+            onViewReviews={(toolId) => handleNavigate('reviews', toolId)}
+            currentUser={currentUser}
+          />
+        );
+      case 'reviews':
+        return (
+          <ReviewsPage 
+            reviews={reviews} 
+            tools={tools} 
+            users={users} 
+            currentUser={currentUser}
+            initialToolFilter={selectedToolFilter}
+            onAddReview={addReview} 
+          />
+        );
+      case 'settings':
+        return <SettingsPage />;
+      default:
+        return null;
     }
   };
 
-  const renderDateLabel = () => {
-    if (viewMode === 'month') {
-      return format(currentDate, 'MMMM yyyy', { locale: pt });
-    }
-    if (viewMode === 'week') {
-      const start = startOfWeek(currentDate, { weekStartsOn: 1 });
-      const end = endOfWeek(currentDate, { weekStartsOn: 1 });
-      
-      if (start.getMonth() === end.getMonth()) {
-         return `${format(start, 'd')} - ${format(end, 'd', { locale: pt })} de ${format(end, 'MMMM yyyy', { locale: pt })}`;
-      }
-      return `${format(start, 'd MMM', { locale: pt })} - ${format(end, 'd MMM yyyy', { locale: pt })}`;
-    }
-    if (viewMode === 'day') {
-      return format(currentDate, "EEEE, d 'de' MMMM", { locale: pt });
-    }
-    return '';
-  };
+  const NavItem = ({ page, icon: Icon, label }: { page: PageView, icon: any, label: string }) => (
+    <button
+      onClick={() => handleNavigate(page)}
+      className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200
+        ${currentPage === page 
+          ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' 
+          : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
+        }`}
+    >
+      <Icon className={`w-5 h-5 ${currentPage === page ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'}`} />
+      {label}
+    </button>
+  );
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900 pb-20">
-      {/* Navbar */}
-      <nav className="bg-white border-b border-gray-200 sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center gap-3">
-              <div className="bg-blue-500 p-2 rounded-lg">
-                <LayoutGrid className="w-6 h-6 text-white" />
+    <div className="min-h-screen bg-[#f9fafb] dark:bg-gray-900 flex font-sans text-gray-900 dark:text-gray-100 transition-colors duration-200">
+      
+      {/* Mobile Menu Button */}
+      <button 
+        className="lg:hidden fixed top-4 right-4 z-50 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200"
+        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+      >
+        {isMobileMenuOpen ? <X /> : <Menu />}
+      </button>
+
+      {/* Sidebar */}
+      <aside className={`
+        fixed lg:static inset-y-0 left-0 z-40 w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transform transition-transform duration-300 ease-in-out flex flex-col
+        ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+      `}>
+        {/* Logo */}
+        <div className="h-20 flex items-center gap-2.5 px-6 border-b border-gray-100 dark:border-gray-700 flex-shrink-0">
+          <Cpu className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+          <span className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">
+            AI Manager
+          </span>
+        </div>
+
+        {/* Navigation */}
+        <div className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
+          <NavItem page="dashboard" icon={LayoutDashboard} label="Dashboard" />
+          <NavItem page="team" icon={Users} label="Team Members" />
+          <NavItem page="tools" icon={Cpu} label="AI Tools" />
+          <NavItem page="reviews" icon={MessageSquare} label="Reviews" />
+        </div>
+
+        {/* Bottom Actions */}
+        <div className="p-4 border-t border-gray-100 dark:border-gray-700 space-y-1 flex-shrink-0 bg-gray-50/50 dark:bg-gray-800/50">
+          <NavItem page="settings" icon={Settings} label="Settings" />
+          
+          {/* User Profile / Switcher */}
+          <div className="mt-4 relative">
+            <button 
+              onClick={() => setIsUserSwitcherOpen(!isUserSwitcherOpen)}
+              className="w-full flex items-center gap-3 p-2 hover:bg-white dark:hover:bg-gray-700 rounded-xl border border-transparent hover:border-gray-200 dark:hover:border-gray-600 hover:shadow-sm transition-all text-left group"
+            >
+              <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 flex items-center justify-center text-sm font-bold border border-blue-200 dark:border-blue-700">
+                {currentUser.initials}
               </div>
-              <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-blue-400 hidden sm:block">
-                AI Tool Hub
-              </span>
-            </div>
-            
-            <div className="flex items-center gap-2 sm:gap-4">
-              <button 
-                onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-                className={`p-2 rounded-lg transition-colors ${isSettingsOpen ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100 text-gray-500'}`}
-                title="Configurações"
-              >
-                <Settings className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => {
-                  setModalInitialDate(new Date());
-                  setModalInitialToolId(undefined);
-                  setIsModalOpen(true);
-                }}
-                className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors shadow-sm font-medium"
-              >
-                <Plus className="w-5 h-5" />
-                <span className="hidden sm:inline">Nova Reserva</span>
-              </button>
-            </div>
+              <div className="overflow-hidden flex-1">
+                <p className="text-sm font-semibold truncate text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{currentUser.name}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">Switch User</p>
+              </div>
+            </button>
+
+            {/* Switch User Popover */}
+            {isUserSwitcherOpen && (
+              <UserSwitcher 
+                users={users} 
+                currentUser={currentUser} 
+                onSwitch={handleSwitchUser} 
+                onClose={() => setIsUserSwitcherOpen(false)} 
+              />
+            )}
           </div>
         </div>
-      </nav>
+      </aside>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        
-        {isSettingsOpen ? (
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
-             <div className="flex items-center gap-2 mb-6 cursor-pointer text-gray-500 hover:text-blue-600 w-fit" onClick={() => setIsSettingsOpen(false)}>
-                <ChevronLeft className="w-4 h-4" />
-                Voltar ao Calendário
+      <main className="flex-1 overflow-y-auto h-screen">
+        {/* Top Bar */}
+        <header className="h-20 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-8 sticky top-0 z-30 transition-colors">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize tracking-tight">
+            {currentPage === 'dashboard' ? 'Schedule' : 
+             currentPage === 'team' ? 'Team Management' : 
+             currentPage === 'tools' ? 'Tool Management' : 
+             currentPage === 'reviews' ? 'Tool Reviews' :
+             currentPage}
+          </h1>
+          <div className="flex items-center gap-4">
+             <button className="p-2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors relative">
+                <div className="w-2 h-2 bg-red-500 rounded-full absolute top-2 right-2 border-2 border-white dark:border-gray-800"></div>
+                <MessageSquare className="w-5 h-5" />
+             </button>
+             <div className="h-8 w-px bg-gray-200 dark:bg-gray-700 mx-2"></div>
+             <div className="text-right hidden sm:block">
+                <p className="text-sm font-bold text-gray-900 dark:text-white">{currentUser.name}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{currentUser.role}</p>
              </div>
-             <ToolManager tools={tools} onAddTool={handleAddTool} onRemoveTool={handleRemoveTool} />
           </div>
-        ) : (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-            {/* Calendar Controls */}
-            <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-              <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
-                <button
-                  onClick={() => setViewMode('month')}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-                    viewMode === 'month' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  Mês
-                </button>
-                <button
-                  onClick={() => setViewMode('week')}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-                    viewMode === 'week' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  Semana
-                </button>
-                <button
-                  onClick={() => setViewMode('day')}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-                    viewMode === 'day' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  Dia
-                </button>
-              </div>
+        </header>
 
-              <div className="flex items-center gap-4">
-                <button onClick={handlePrevious} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-                  <ChevronLeft className="w-5 h-5 text-gray-600" />
-                </button>
-                <h2 className="text-lg font-bold text-gray-800 min-w-[200px] text-center capitalize">
-                  {renderDateLabel()}
-                  {viewMode === 'day' && <span className="block text-xs font-normal text-gray-500">{format(currentDate, 'yyyy', { locale: pt })}</span>}
-                </h2>
-                <button onClick={handleNext} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-                  <ChevronRight className="w-5 h-5 text-gray-600" />
-                </button>
-              </div>
-
-              <button
-                onClick={handleToday}
-                className="text-sm font-medium text-blue-600 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors"
-              >
-                Hoje
-              </button>
-            </div>
-
-            {/* Calendar View */}
-            <CalendarView
-              mode={viewMode}
-              currentDate={currentDate}
-              reservations={reservations}
-              tools={tools}
-              users={users}
-              onSlotClick={handleSlotClick}
-            />
-
-            {/* Legend (for Month/Week views mostly) */}
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mt-4">
-              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Legenda das Ferramentas</h3>
-              <div className="flex flex-wrap gap-4">
-                {tools.map(tool => (
-                  <div key={tool.id} className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full" style={{ backgroundColor: tool.color }}></span>
-                    <span className="text-sm text-gray-700">{tool.name}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
+        <div className="p-8 max-w-7xl mx-auto h-[calc(100vh-80px)]">
+           {renderContent()}
+        </div>
       </main>
 
-      {/* Modals */}
-      <BookingModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSave={handleSaveReservation}
-        users={users}
-        tools={tools}
-        existingReservations={reservations}
-        initialDate={modalInitialDate}
-        initialToolId={modalInitialToolId}
-      />
+      {/* Mobile Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/20 z-30 lg:hidden"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
     </div>
   );
 }
